@@ -1,0 +1,80 @@
+import hashlib
+import datetime
+import rsa
+
+# Generate RSA keys
+public_key, private_key = rsa.newkeys(512)
+
+class Transaction:
+    def __init__(self, sender, receiver, amount):
+        self.sender = sender
+        self.receiver = receiver
+        self.amount = amount
+
+    def to_string(self):
+        return f"{self.sender}->{self.receiver}:{self.amount}"
+
+def sign_transaction(transaction):
+    message = transaction.to_string().encode()
+    signature = rsa.sign(message, private_key, 'SHA-256')
+    return signature
+
+def verify_transaction(transaction, signature):
+    try:
+        rsa.verify(transaction.to_string().encode(), signature, public_key)
+        return True
+    except:
+        return False
+
+class Block:
+    def __init__(self, index, transaction, previous_hash):
+        self.index = index
+        self.timestamp = str(datetime.datetime.now())
+        self.transaction = transaction
+        self.previous_hash = previous_hash
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self):
+        data = str(self.index) + self.timestamp + self.transaction.to_string() + self.previous_hash
+        return hashlib.sha256(data.encode()).hexdigest()
+
+class Blockchain:
+    def __init__(self):
+        self.chain = [self.create_genesis_block()]
+
+    def create_genesis_block(self):
+        dummy_tx = Transaction("Genesis", "None", 0)
+        return Block(0, dummy_tx, "0")
+
+    def add_block(self, transaction):
+        prev_block = self.chain[-1]
+        new_block = Block(len(self.chain), transaction, prev_block.hash)
+        self.chain.append(new_block)
+
+    def display_chain(self):
+        for block in self.chain:
+            print("\nBlock Index:", block.index)
+            print("Transaction:", block.transaction.to_string())
+            print("Hash:", block.hash)
+            print("Previous Hash:", block.previous_hash)
+
+# ===== MAIN EXECUTION =====
+
+# Step 1: Create original transaction
+tx1 = Transaction("Alice", "Bob", 100)
+
+# Step 2: Sign original transaction
+signature = sign_transaction(tx1)
+
+# Step 3: TAMPER the transaction (change amount AFTER signing)
+tx1 = Transaction("Alice", "Bob", 999)
+
+# Step 4: Verify signature (should FAIL)
+print("Signature Valid (After Tampering):", verify_transaction(tx1, signature))
+
+# Step 5: Add to blockchain
+bc = Blockchain()
+bc.add_block(tx1)
+
+# Step 6: Display blockchain
+bc.display_chain()
